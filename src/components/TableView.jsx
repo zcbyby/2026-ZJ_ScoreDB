@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { getScoreColor, buildLocationMap } from '../utils/data'
 import { ArrowUpDown, ListFilter, Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import SchoolPopover from './SchoolPopover'
 
 const ROW_HEIGHT = 40
 const HEADER_HEIGHT = 38
@@ -37,6 +38,8 @@ export default function TableView({ mergedData }) {
   const filterRef = useRef(null)
   const openFilterRef = useRef(null)
   openFilterRef.current = openFilterCol
+  const [popoverSchool, setPopoverSchool] = useState(null)
+  const [popoverAnchor, setPopoverAnchor] = useState(null)
 
   const locationMap = useMemo(() => buildLocationMap(mergedData), [mergedData])
 
@@ -75,7 +78,7 @@ export default function TableView({ mergedData }) {
   }, [mergedData, COLUMNS, locationMap])
 
   const processed = useMemo(() => {
-    let data = mergedData
+    let data = [...mergedData]
     const entries = Object.entries(columnFilters)
     if (entries.length > 0) {
       data = data.filter(row => {
@@ -116,6 +119,8 @@ export default function TableView({ mergedData }) {
   }, [mergedData, sortKey, sortAsc, columnFilters, COLUMNS])
 
   const totalHeight = processed.length * ROW_HEIGHT
+  const totalWidth = COLUMNS.reduce((s, c) => s + c.width, 0)
+
   const visibleRange = useMemo(() => {
     const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN)
     const end = Math.min(processed.length, Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + OVERSCAN)
@@ -136,7 +141,9 @@ export default function TableView({ mergedData }) {
     return () => ro.disconnect()
   }, [])
 
-  const onScroll = useCallback(() => { if (scrollRef.current) setScrollTop(scrollRef.current.scrollTop) }, [])
+  const onScroll = useCallback(() => {
+    if (scrollRef.current) setScrollTop(scrollRef.current.scrollTop)
+  }, [])
 
   const handleSort = (key) => {
     if (sortKey === key) setSortAsc(!sortAsc)
@@ -176,7 +183,6 @@ export default function TableView({ mergedData }) {
     setFilterGen(g => g + 1)
   }
 
-  // Export FILTERED data with AutoFilter
   const exportXLSX = useCallback(() => {
     const headers = COLUMNS.map(c => c.label)
     const rows = processed.map(r => COLUMNS.map(c => {
@@ -207,12 +213,11 @@ export default function TableView({ mergedData }) {
     URL.revokeObjectURL(url)
   }, [processed, COLUMNS])
 
-  const totalWidth = COLUMNS.reduce((s, c) => s + c.width, 0)
-  const rowKey = useCallback((r, i) => r.school_code + '|' + r.major_name + '|' + i + '|g' + filterGen, [filterGen])
+  const rowKey = useCallback((r, absIndex) => r.school_code + '|' + r.major_name + '|' + absIndex + '|g' + filterGen, [filterGen])
 
   return (
-    <div className="h-full flex flex-col bg-white">
-      <div className="shrink-0 px-3 py-1.5 bg-[#f2f2f7] border-b border-[rgba(60,60,67,0.08)] flex items-center gap-2 text-[11px] text-[#8e8e93]">
+    <div className="h-full flex flex-col bg-[var(--bg-elevated)] transition-colors">
+      <div className="shrink-0 px-3 py-1.5 bg-[var(--bg-secondary)] border-b border-[var(--border-color)] flex items-center gap-2 text-[11px] text-[var(--text-secondary)] transition-colors">
         <span>{mergedData.length.toLocaleString()} 条</span>
         {activeFilterCount > 0 && (
           <>
@@ -229,81 +234,108 @@ export default function TableView({ mergedData }) {
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col relative" ref={bodyRef}>
-        <div className="shrink-0 flex bg-[#f8f8fa] border-b border-[rgba(60,60,67,0.12)]" style={{ height: HEADER_HEIGHT, width: totalWidth, minWidth: '100%' }}>
-          {COLUMNS.map(col => (
-            <div key={col.key} className="shrink-0 relative group" style={{ width: col.width }}>
-              <button
-                onClick={() => handleSort(col.key)}
-                className="flex items-center gap-1 w-full h-full pl-2 pr-6 text-[11px] font-semibold transition-colors"
-                style={{ justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start', color: sortKey === col.key ? '#1c1c1e' : '#6c6c70' }}
-              >
-                <span className="truncate">{col.label}</span>
-                {sortKey === col.key && <ArrowUpDown size={10} className="shrink-0" />}
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); setOpenFilterCol(openFilterCol === col.key ? null : col.key) }}
-                className={`filter-trigger absolute right-0.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded text-[11px] transition-all ${
-                  hasFilter(col.key) ? 'text-[#007aff]' : 'text-[#c7c7cc] group-hover:text-[#6c6c70]'
-                }`}
-              >
-                <ListFilter size={14} />
-              </button>
-              {openFilterCol === col.key && (
-                <div className="absolute left-0 top-full z-30" ref={filterRef}>
-                  <ColumnFilterDropdown
-                    column={col}
-                    meta={columnMeta[col.key]}
-                    currentFilter={columnFilters[col.key] || {}}
-                    onApply={(f) => setFilter(col.key, f)}
-                  />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-auto" onScroll={onScroll}>
-          <div style={{ height: totalHeight, position: 'relative', width: totalWidth, minWidth: '100%' }}>
-            <div style={{ position: 'absolute', top: visibleRange.start * ROW_HEIGHT, left: 0, right: 0 }}>
-              {visibleRows.map((r, i) => (
-                <div key={rowKey(r, i)}
-                  className="flex items-center border-b border-[rgba(60,60,67,0.04)] hover:bg-[rgba(0,122,255,0.03)] animate-row-enter"
-                  style={{ height: ROW_HEIGHT, animationDelay: `${Math.min(i * 15, 200)}ms` }}
-                >
-                  {COLUMNS.map(col => {
-                    const val = col.key === 'location'
-                      ? `${r.school_province || ''}${r.school_city ? '/' + r.school_city : ''}`
-                      : getColValue(r, col.key)
-                    const isScore = col.key.startsWith('score_')
-                    const isRank = col.key.startsWith('rank_')
-                    const isPlan = col.key.startsWith('plan_')
-                    const isCode = col.key === 'school_code'
-
-                    let color = '#1c1c1e'
-                    if (isScore && val > 0) color = getScoreColor(val)
-                    else if (isRank && val > 0) color = '#636366'
-                    else if (isPlan) color = '#8e8e93'
-
-                    return (
-                      <div key={col.key}
-                        className="px-2 text-[12px] truncate shrink-0"
-                        style={{
-                          width: col.width,
-                          textAlign: col.align,
-                          color,
-                          fontWeight: isScore ? 600 : isCode ? 500 : 400,
-                        }}
-                      >
-                        {col.key === 'location' ? val : fmtValue(val, col)}
-                      </div>
-                    )
-                  })}
+        <div ref={scrollRef} className="flex-1 overflow-auto" onScroll={onScroll}>
+          <div style={{ width: totalWidth, minWidth: '100%' }}>
+            {/* Sticky header: scrolls horizontally with content, stays at top vertically */}
+            <div className="sticky top-0 z-10 flex bg-[var(--table-header-bg)] border-b border-[var(--border-medium)] transition-colors"
+              style={{ height: HEADER_HEIGHT }}
+            >
+              {COLUMNS.map(col => (
+                <div key={col.key} className="shrink-0 relative group" style={{ width: col.width }}>
+                  <button
+                    onClick={() => handleSort(col.key)}
+                    className="flex items-center gap-1 w-full h-full pl-2 pr-6 text-[11px] font-semibold transition-colors"
+                    style={{ justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start', color: sortKey === col.key ? 'var(--text-primary)' : 'var(--text-tertiary)' }}
+                  >
+                    <span className="truncate">{col.label}</span>
+                    {sortKey === col.key && <ArrowUpDown size={10} className="shrink-0" />}
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setOpenFilterCol(openFilterCol === col.key ? null : col.key) }}
+                    className={`filter-trigger absolute right-0.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded text-[11px] transition-all ${
+                      hasFilter(col.key) ? 'text-[#007aff]' : 'text-[var(--text-quaternary)] group-hover:text-[var(--text-tertiary)]'
+                    }`}
+                  >
+                    <ListFilter size={14} />
+                  </button>
+                  {openFilterCol === col.key && (
+                    <div className="absolute left-0 top-full z-30" ref={filterRef}>
+                      <ColumnFilterDropdown
+                        column={col}
+                        meta={columnMeta[col.key]}
+                        currentFilter={columnFilters[col.key] || {}}
+                        onApply={(f) => setFilter(col.key, f)}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
+
+            <div style={{ height: totalHeight, position: 'relative' }}>
+              <div style={{ position: 'absolute', top: visibleRange.start * ROW_HEIGHT, left: 0, right: 0 }}>
+                {visibleRows.map((r, i) => {
+                  const absIndex = visibleRange.start + i
+                  return (
+                  <div key={rowKey(r, absIndex)}
+                    className="flex items-center border-b border-[var(--border-color)]"
+                    style={{
+                      height: ROW_HEIGHT,
+                      willChange: 'transform',
+                      transform: 'translateZ(0)',
+                      backgroundColor: absIndex % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.015)',
+                    }}
+                  >
+                    {COLUMNS.map(col => {
+                      const val = col.key === 'location'
+                        ? `${r.school_province || ''}${r.school_city ? '/' + r.school_city : ''}`
+                        : getColValue(r, col.key)
+                      const isScore = col.key.startsWith('score_')
+                      const isRank = col.key.startsWith('rank_')
+                      const isPlan = col.key.startsWith('plan_')
+                      const isCode = col.key === 'school_code'
+
+                      let color = 'var(--text-primary)'
+                      if (isScore && val > 0) color = getScoreColor(val)
+                      else if (isRank && val > 0) color = 'var(--text-tertiary)'
+                      else if (isPlan) color = 'var(--text-secondary)'
+
+                      const isSchool = col.key === 'school_name'
+                      return (
+                        <div key={col.key}
+                          className={`px-2 text-[12px] truncate shrink-0 ${isSchool ? 'cursor-pointer school-cell' : ''}`}
+                          style={{
+                            width: col.width,
+                            textAlign: col.align,
+                            color,
+                            fontWeight: isScore ? 600 : isCode ? 500 : 400,
+                          }}
+                          onClick={isSchool ? (e) => {
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            setPopoverAnchor(rect)
+                            setPopoverSchool(val)
+                          } : undefined}
+                        >
+                          {col.key === 'location' ? val : fmtValue(val, col)}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+        </div>
+
+        {popoverSchool && popoverAnchor && (
+          <SchoolPopover
+            schoolName={popoverSchool}
+            anchorRect={popoverAnchor}
+            onClose={() => { setPopoverSchool(null); setPopoverAnchor(null) }}
+          />
+        )}
     </div>
   )
 }
@@ -338,6 +370,20 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
   const [selectedValues, setSelectedValues] = useState(currentFilter.selectedValues || [])
   const [minVal, setMinVal] = useState(currentFilter.min != null ? currentFilter.min : '')
   const [maxVal, setMaxVal] = useState(currentFilter.max != null ? currentFilter.max : '')
+  const [dropdownDir, setDropdownDir] = useState('left')
+
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect()
+      if (rect.right > window.innerWidth) {
+        setDropdownDir('right')
+      } else {
+        setDropdownDir('left')
+      }
+    }
+  }, [])
 
   const availableCities = useMemo(() => {
     if (!isLocation || !meta?.locationMap) return []
@@ -399,11 +445,21 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
   const allProvinces = meta?.locationMap ? Object.keys(meta.locationMap).sort() : []
 
   return (
-    <div className="bg-white rounded-[12px] shadow-xl border border-[rgba(60,60,67,0.12)] flex flex-col animate-scale-in"
-      style={{ width: isLocation ? 280 : 250, maxHeight: isLocation ? 420 : 380 }}>
+    <div ref={dropdownRef}
+      className={`bg-[var(--dropdown-bg)] rounded-[12px] shadow-xl border border-[var(--dropdown-border)] flex flex-col animate-scale-in transition-colors ${
+        dropdownDir === 'right' ? 'right-0 left-auto' : ''
+      }`}
+      style={{
+        width: isLocation ? 280 : 250,
+        maxHeight: isLocation ? 420 : 380,
+        position: 'absolute',
+        [dropdownDir === 'right' ? 'right' : 'left']: 0,
+        top: 0,
+      }}
+    >
       <div className="overflow-y-auto flex-1 p-3 pb-0">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[14px] font-semibold text-[#1c1c1e]">{column.label}</span>
+          <span className="text-[14px] font-semibold text-[var(--text-primary)] transition-colors">{column.label}</span>
           <button onClick={clear} className="text-[12px] text-[#007aff]">清除</button>
         </div>
 
@@ -411,7 +467,7 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
           <>
             <div className="mb-3">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] text-[#8e8e93] font-medium">省份</span>
+                <span className="text-[11px] text-[var(--text-secondary)] font-medium transition-colors">省份</span>
                 <div className="flex gap-2">
                   <button onClick={() => setSelectedProvinces(allProvinces)} className="text-[10px] text-[#007aff]">全选</button>
                   <button onClick={() => setSelectedProvinces([])} className="text-[10px] text-[#007aff]">清空</button>
@@ -423,7 +479,7 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
                     className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-all duration-150 ${
                       selectedProvinces.includes(p)
                         ? 'bg-[#007aff] text-white'
-                        : 'bg-[#f2f2f7] text-[#3a3a3c] hover:bg-[#e5e5ea]'
+                        : 'bg-[var(--filter-chip-bg)] text-[var(--filter-chip-text)] hover:bg-[var(--filter-chip-hover)]'
                     }`}
                   >
                     {p}
@@ -435,7 +491,7 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] text-[#8e8e93] font-medium">城市</span>
+                <span className="text-[11px] text-[var(--text-secondary)] font-medium transition-colors">城市</span>
                 <div className="flex gap-2">
                   <button onClick={() => setSelectedCities(availableCities)} className="text-[10px] text-[#007aff]">全选</button>
                   <button onClick={() => setSelectedCities([])} className="text-[10px] text-[#007aff]">清空</button>
@@ -447,14 +503,14 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
                     className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-all duration-150 ${
                       selectedCities.includes(c)
                         ? 'bg-[#007aff] text-white'
-                        : 'bg-[#f2f2f7] text-[#3a3a3c] hover:bg-[#e5e5ea]'
+                        : 'bg-[var(--filter-chip-bg)] text-[var(--filter-chip-text)] hover:bg-[var(--filter-chip-hover)]'
                     }`}
                   >
                     {c}
                   </button>
                 ))}
                 {availableCities.length === 0 && (
-                  <span className="text-[11px] text-[#8e8e93]">请先选择省份</span>
+                  <span className="text-[11px] text-[var(--text-secondary)] transition-colors">请先选择省份</span>
                 )}
               </div>
             </div>
@@ -463,21 +519,21 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
           <>
             <input type="text" value={textSearch} onChange={e => setTextSearch(e.target.value)}
               placeholder="搜索..." autoFocus
-              className="w-full bg-[#f2f2f7] rounded-[8px] px-3 py-2 text-[13px] outline-none mb-2 placeholder-[#8e8e93]"
+              className="w-full bg-[var(--input-bg)] rounded-[8px] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none mb-2 placeholder-[var(--text-secondary)] transition-colors"
             />
             <div className="flex items-center gap-2 mb-2">
               <button onClick={() => setSelectedValues(filteredValues.map(v => v))} className="text-[11px] text-[#007aff]">全选</button>
               <button onClick={() => setSelectedValues([])} className="text-[11px] text-[#007aff]">清空</button>
-              <span className="text-[11px] text-[#8e8e93] ml-auto">
+              <span className="text-[11px] text-[var(--text-secondary)] ml-auto transition-colors">
                 {selectedValues.length}/{meta?.values?.length || 0}
                 {(filteredValues.length < (meta?.values?.length || 0)) && ` (显示${filteredValues.length})`}
               </span>
             </div>
             <div className="max-h-[200px] overflow-y-auto space-y-0.5">
               {filteredValues.map(v => (
-                <label key={v} className="flex items-center gap-2 px-1 py-1.5 rounded hover:bg-[#f2f2f7] cursor-pointer">
+                <label key={v} className="flex items-center gap-2 px-1 py-1.5 rounded hover:bg-[var(--filter-chip-bg)] cursor-pointer transition-colors">
                   <input type="checkbox" checked={selectedValues.includes(v)} onChange={() => toggleValue(v)} className="accent-[#007aff]" />
-                  <span className="text-[13px] text-[#1c1c1e] truncate">{v}</span>
+                  <span className="text-[13px] text-[var(--text-primary)] truncate transition-colors">{v}</span>
                 </label>
               ))}
             </div>
@@ -486,31 +542,31 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
           <div className="space-y-3 pb-2">
             <div className="flex items-center gap-3">
               <div className="flex-1">
-                <label className="text-[11px] text-[#8e8e93]">最小值</label>
+                <label className="text-[11px] text-[var(--text-secondary)] transition-colors">最小值</label>
                 <input type="number" value={minVal} onChange={e => setMinVal(e.target.value)}
                   placeholder={meta?.min?.toString()}
-                  className="w-full bg-[#f2f2f7] rounded-[8px] px-3 py-2 text-[13px] outline-none mt-1"
+                  className="w-full bg-[var(--input-bg)] rounded-[8px] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none mt-1 transition-colors"
                 />
               </div>
               <div className="flex-1">
-                <label className="text-[11px] text-[#8e8e93]">最大值</label>
+                <label className="text-[11px] text-[var(--text-secondary)] transition-colors">最大值</label>
                 <input type="number" value={maxVal} onChange={e => setMaxVal(e.target.value)}
                   placeholder={meta?.max?.toString()}
-                  className="w-full bg-[#f2f2f7] rounded-[8px] px-3 py-2 text-[13px] outline-none mt-1"
+                  className="w-full bg-[var(--input-bg)] rounded-[8px] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none mt-1 transition-colors"
                 />
               </div>
             </div>
-            <div className="text-[11px] text-[#8e8e93]">
+            <div className="text-[11px] text-[var(--text-secondary)] transition-colors">
               范围: {(meta?.min ?? 0).toLocaleString()} ~ {(meta?.max ?? 0).toLocaleString()}
             </div>
           </div>
         )}
       </div>
 
-      <div className="shrink-0 p-3 border-t border-[rgba(60,60,67,0.08)] bg-white rounded-b-[12px]">
+      <div className="shrink-0 p-3 border-t border-[var(--border-color)] bg-[var(--dropdown-bg)] rounded-b-[12px] transition-colors">
         <div className="flex gap-2">
           <button onClick={() => onApply({})}
-            className="flex-1 py-2.5 rounded-[10px] text-[13px] font-medium bg-[#f2f2f7] text-[#1c1c1e] active:bg-[#e5e5ea] transition-colors">
+            className="flex-1 py-2.5 rounded-[10px] text-[13px] font-medium bg-[var(--filter-chip-bg)] text-[var(--text-primary)] active:bg-[var(--filter-chip-hover)] transition-colors">
             取消
           </button>
           <button onClick={apply}

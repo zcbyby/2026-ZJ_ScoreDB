@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#ffffff"/>
+  <g transform="translate(256,256) scale(1.35)" fill="none" stroke="#0079FF" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Abstract graduation cap -->
+    <polyline points="-100,20 0,-45 100,20" stroke-width="12"/>
+    <line x1="-120" y1="20" x2="120" y2="20" stroke-width="10"/>
+    <path d="M100,20 Q120,40 110,68" stroke-width="5"/>
+    <circle cx="110" cy="74" r="6" fill="#0079FF" stroke="none"/>
+    <!-- Bar chart -->
+    <rect x="-68" y="18" width="30" height="90" rx="6" fill="#0079FF" stroke="none" opacity="0.9"/>
+    <rect x="-22" y="36" width="30" height="72" rx="6" fill="#0079FF" stroke="none" opacity="0.65"/>
+    <rect x="24" y="5" width="30" height="103" rx="6" fill="#0079FF" stroke="none" opacity="0.85"/>
+    <rect x="70" y="28" width="30" height="80" rx="6" fill="#0079FF" stroke="none" opacity="0.55"/>
+  </g>
+</svg>

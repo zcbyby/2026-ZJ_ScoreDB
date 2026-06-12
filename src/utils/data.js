@@ -38,7 +38,7 @@ export function getScoreTier(score) {
   return '其他';
 }
 
-const YEAR_COLORS = { '2023': '#5ac8fa', '2024': '#ff9500', '2025': '#ff2d55' };
+const YEAR_COLORS = { '2023': '#007aff', '2024': '#34c759', '2025': '#ff3b30' };
 export function getYearColor(year) { return YEAR_COLORS[year] || '#8e8e93'; }
 
 export function buildLocationMap(data) {

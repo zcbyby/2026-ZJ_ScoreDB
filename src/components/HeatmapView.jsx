@@ -2,6 +2,8 @@ import { useRef, useEffect, useMemo, useCallback, useState } from 'react'
 import * as echarts from 'echarts'
 import { getYearColor, buildLocationMap } from '../utils/data'
 import { ListFilter, ChevronDown } from 'lucide-react'
+import { useTheme } from '../theme'
+import SchoolPopover from './SchoolPopover'
 
 const COLUMNS = [
   { key: 'school_code', label: '院校代码', width: 72, align: 'center', type: 'text' },
@@ -11,6 +13,7 @@ const COLUMNS = [
 ]
 
 export default function HeatmapView({ mergedData }) {
+  const { theme } = useTheme()
   const chartRef = useRef(null)
   const containerRef = useRef(null)
   const [selectedYears, setSelectedYears] = useState(['2023', '2024', '2025'])
@@ -18,10 +21,11 @@ export default function HeatmapView({ mergedData }) {
   const [columnFilters, setColumnFilters] = useState({})
   const [openFilterCol, setOpenFilterCol] = useState(null)
   const filterRef = useRef(null)
+  const [popoverSchool, setPopoverSchool] = useState(null)
+  const [popoverAnchor, setPopoverAnchor] = useState(null)
 
   const locationMap = useMemo(() => buildLocationMap(mergedData), [mergedData])
 
-  // --- Column filter meta ---
   const columnMeta = useMemo(() => {
     const meta = {}
     for (const col of COLUMNS) {
@@ -39,7 +43,6 @@ export default function HeatmapView({ mergedData }) {
     return meta
   }, [mergedData, locationMap])
 
-  // --- Filtered data ---
   const filtered = useMemo(() => {
     let data = mergedData
     const entries = Object.entries(columnFilters)
@@ -64,7 +67,6 @@ export default function HeatmapView({ mergedData }) {
     return data
   }, [mergedData, columnFilters])
 
-  // --- ECharts series data ---
   const seriesData = useMemo(() => {
     return ['2023', '2024', '2025'].map(year => {
       const points = []
@@ -80,17 +82,37 @@ export default function HeatmapView({ mergedData }) {
     })
   }, [filtered])
 
-  // Init chart
+  const isTouchDevice = useMemo(() =>
+    typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0),
+  [])
+
   useEffect(() => {
     if (!containerRef.current) return
     const chart = echarts.init(containerRef.current, null, { renderer: 'canvas' })
     instanceRef.current = chart
     const handleResize = () => chart.resize()
     window.addEventListener('resize', handleResize)
+
+    chart.on('click', (params) => {
+      const d = params.data
+      if (d && d.value && d.value[2]) {
+        const schoolName = d.value[2]
+        const rect = containerRef.current.getBoundingClientRect()
+        const chartRect = chart.getDom().getBoundingClientRect()
+        setPopoverSchool(schoolName)
+        setPopoverAnchor({
+          left: params.event && params.event.event ? params.event.event.clientX : chartRect.left + chartRect.width / 2,
+          top: params.event && params.event.event ? params.event.event.clientY : chartRect.top + chartRect.height / 2,
+          width: 0,
+          height: 0,
+          bottom: params.event && params.event.event ? params.event.event.clientY + 10 : chartRect.top + chartRect.height / 2 + 10,
+        })
+      }
+    })
+
     return () => { window.removeEventListener('resize', handleResize); chart.dispose() }
   }, [])
 
-  // Update chart
   useEffect(() => {
     const chart = instanceRef.current
     if (!chart) return
@@ -100,11 +122,15 @@ export default function HeatmapView({ mergedData }) {
     const minScore = Math.min(...allScores) || 200
     const maxScore = Math.max(...allScores) || 700
     const maxVol = Math.max(...allVols) || 50
+    const isDark = theme === 'dark'
+    const axisColor = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'
+    const splitColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)'
+    const axisLineColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+    const nameColor = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)'
 
     const option = {
-      animation: false,
       backgroundColor: 'transparent',
-      color: ['#5ac8fa', '#ff9500', '#ff2d55'],
+      color: ['#007aff', '#34c759', '#ff3b30'],
       tooltip: {
         trigger: 'item',
         transitionDuration: 0,
@@ -135,20 +161,20 @@ export default function HeatmapView({ mergedData }) {
       grid: { left: 55, right: 20, top: 15, bottom: 35 },
       xAxis: {
         name: '分数线波动性',
-        nameTextStyle: { color: 'rgba(255,255,255,0.35)', fontSize: 10 },
+        nameTextStyle: { color: nameColor, fontSize: 10 },
         type: 'value',
-        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } },
-        axisLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10 },
-        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
+        splitLine: { lineStyle: { color: splitColor } },
+        axisLabel: { color: axisColor, fontSize: 10 },
+        axisLine: { lineStyle: { color: axisLineColor } },
         min: 0, max: maxVol * 1.1,
       },
       yAxis: {
         name: '分数线',
-        nameTextStyle: { color: 'rgba(255,255,255,0.35)', fontSize: 10 },
+        nameTextStyle: { color: nameColor, fontSize: 10 },
         type: 'value',
-        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } },
-        axisLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10 },
-        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
+        splitLine: { lineStyle: { color: splitColor } },
+        axisLabel: { color: axisColor, fontSize: 10 },
+        axisLine: { lineStyle: { color: axisLineColor } },
         min: Math.floor((minScore - 10) / 20) * 20,
         max: Math.ceil((maxScore + 10) / 20) * 20,
       },
@@ -160,14 +186,19 @@ export default function HeatmapView({ mergedData }) {
         name: s.name,
         type: 'scatter',
         data: s.data,
-        symbolSize: 4,
+        symbolSize: isTouchDevice ? 4 : 14,
         itemStyle: { color: s.color, opacity: 0.55 },
-        emphasis: { itemStyle: { opacity: 1, borderColor: '#fff', borderWidth: 2, shadowBlur: 20, shadowColor: s.color }, scale: 1.5 },
-        animation: false, large: true, largeThreshold: 2000,
+        emphasis: {
+          itemStyle: { opacity: 1, borderColor: '#fff', borderWidth: 3, shadowBlur: 40, shadowColor: s.color },
+          scale: isTouchDevice ? 1.5 : 3.5,
+        },
+        animation: false,
+        large: isTouchDevice,
+        largeThreshold: 2000,
       })),
       legend: {
         data: ['2023年', '2024年', '2025年'].filter(y => selectedYears.includes(y.replace('年', ''))),
-        textStyle: { color: 'rgba(255,255,255,0.6)', fontSize: 11 },
+        textStyle: { color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)', fontSize: 11 },
         top: 5, right: 10, icon: 'circle', itemWidth: 8, itemHeight: 8,
       },
     }
@@ -178,9 +209,8 @@ export default function HeatmapView({ mergedData }) {
     const ro = new ResizeObserver(() => chart.resize())
     ro.observe(containerRef.current)
     return () => ro.disconnect()
-  }, [seriesData, filtered, selectedYears])
+  }, [seriesData, filtered, selectedYears, theme])
 
-  // Close filter dropdown on outside click
   useEffect(() => {
     const handler = (e) => {
       if (filterRef.current && !filterRef.current.contains(e.target) && !e.target.closest('.filter-trigger')) {
@@ -213,24 +243,14 @@ export default function HeatmapView({ mergedData }) {
   }
 
   return (
-    <div className="h-full flex flex-col relative overflow-hidden">
-      {/* Gradient overlay from dark center to light edges */}
-      <div className="absolute inset-0 pointer-events-none"
-        style={{
-          background: `
-            radial-gradient(ellipse 80% 60% at 50% 50%, rgba(13,13,26,0.95) 0%, rgba(13,13,26,0.85) 40%, rgba(13,13,26,0.3) 70%, transparent 100%)
-          `,
-        }}
-      />
-      <div className="absolute inset-0 bg-[#0d0d1a]" style={{ opacity: 0.85 }} />
+    <div className="h-full flex flex-col relative overflow-hidden bg-[var(--bg-primary)] transition-colors">
 
-      {/* Filters (on top of gradient) */}
       <div className="shrink-0 px-3 pt-2 pb-1.5 space-y-2 relative z-20">
         <div className="flex gap-2 items-center">
           {['2023', '2024', '2025'].map(y => (
             <button key={y} onClick={() => yearToggle(y)}
-              className={`px-3 py-1.5 rounded-full text-[12px] font-medium ${
-                selectedYears.includes(y) ? 'text-white shadow-sm' : 'bg-white/10 text-[#8e8e93] border border-white/10'
+              className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all ${
+                selectedYears.includes(y) ? 'text-white shadow-sm' : 'bg-white/10 text-[var(--text-secondary)] border border-white/10'
               }`}
               style={selectedYears.includes(y) ? { backgroundColor: getYearColor(y) } : {}}
             >{y}年</button>
@@ -246,10 +266,10 @@ export default function HeatmapView({ mergedData }) {
           {COLUMNS.map(col => (
             <button key={col.key}
               onClick={(e) => { e.stopPropagation(); setOpenFilterCol(openFilterCol === col.key ? null : col.key) }}
-              className={`filter-trigger flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium ${
+              className={`filter-trigger flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
                 hasFilter(col.key)
                   ? 'bg-[#007aff] text-white'
-                  : 'bg-white/10 text-[#8e8e93] hover:bg-white/20'
+                  : 'bg-white/10 text-[var(--text-secondary)] hover:bg-white/20'
               }`}
             >
               <ListFilter size={12} />
@@ -261,51 +281,67 @@ export default function HeatmapView({ mergedData }) {
 
         {openFilterCol && (
           <div className="relative z-30" ref={filterRef}>
-            <div className="absolute left-0 top-1">
-              <ColumnFilterDropdown
-                column={COLUMNS.find(c => c.key === openFilterCol)}
-                meta={columnMeta[openFilterCol]}
-                currentFilter={columnFilters[openFilterCol] || {}}
-                onApply={(f) => {
-                  setColumnFilters(prev => {
-                    const next = { ...prev }
-                    if (!f || (Object.keys(f).length === 0)) delete next[openFilterCol]
-                    else next[openFilterCol] = f
-                    return next
-                  })
-                  setOpenFilterCol(null)
-                }}
-              />
-            </div>
+            <FilterDropdown
+              column={COLUMNS.find(c => c.key === openFilterCol)}
+              meta={columnMeta[openFilterCol]}
+              currentFilter={columnFilters[openFilterCol] || {}}
+              onApply={(f) => {
+                setColumnFilters(prev => {
+                  const next = { ...prev }
+                  if (!f || (Object.keys(f).length === 0)) delete next[openFilterCol]
+                  else next[openFilterCol] = f
+                  return next
+                })
+                setOpenFilterCol(null)
+              }}
+            />
           </div>
         )}
       </div>
 
-      {/* Stats */}
-      <div className="shrink-0 px-3 pb-1 text-[11px] text-[#8e8e93] flex gap-3 relative z-10">
+      <div className="shrink-0 px-3 pb-1 text-[11px] text-[var(--text-secondary)] flex gap-3 relative z-10 transition-colors">
         <span>{filtered.length.toLocaleString()} 个专业</span>
         <span>·</span>
         <span>{totalSchools} 所学校</span>
         {activeFilterCount > 0 && <span>· {activeFilterCount} 个筛选中</span>}
       </div>
 
-      {/* Chart */}
       <div ref={containerRef} className="flex-1 w-full relative z-0" />
+
+      {popoverSchool && popoverAnchor && (
+        <SchoolPopover
+          schoolName={popoverSchool}
+          anchorRect={popoverAnchor}
+          onClose={() => { setPopoverSchool(null); setPopoverAnchor(null) }}
+        />
+      )}
     </div>
   )
 }
 
-function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
+function FilterDropdown({ column, meta, currentFilter, onApply }) {
   const isLocation = column.type === 'location'
   const isText = column.type === 'text'
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
 
-  // Location cascade
   const [selectedProvinces, setSelectedProvinces] = useState(currentFilter.provinces || [])
   const [selectedCities, setSelectedCities] = useState(currentFilter.cities || [])
-
-  // Text filter
   const [textSearch, setTextSearch] = useState(currentFilter.textSearch || '')
   const [selectedValues, setSelectedValues] = useState(currentFilter.selectedValues || [])
+  const [dropdownDir, setDropdownDir] = useState('left')
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect()
+      if (rect.right > window.innerWidth) {
+        setDropdownDir('right')
+      } else {
+        setDropdownDir('left')
+      }
+    }
+  }, [])
 
   const availableCities = useMemo(() => {
     if (!isLocation || !meta?.locationMap) return []
@@ -318,7 +354,6 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
     return [...cities].sort()
   }, [isLocation, meta, selectedProvinces])
 
-  // For text filter
   const filteredValues = useMemo(() => {
     if (!isText || !meta?.values) return []
     const q = textSearch.toLowerCase()
@@ -362,18 +397,33 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
 
   const allProvinces = meta?.locationMap ? Object.keys(meta.locationMap).sort() : []
 
+  const bg = isDark ? '#1c1c1e' : '#ffffff'
+  const chipBg = isDark ? '#2c2c2e' : '#f2f2f7'
+  const chipText = isDark ? '#c7c7cc' : '#3a3a3c'
+  const chipHover = isDark ? '#3a3a3c' : '#e5e5ea'
+  const textPrimary = isDark ? '#ffffff' : '#1c1c1e'
+  const borderClr = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(60,60,67,0.12)'
+
   return (
-    <div className="bg-[#1c1c1e] rounded-[10px] shadow-xl border border-white/10 flex flex-col"
-      style={{ width: isLocation ? 280 : 250, maxHeight: isLocation ? 420 : 380 }}>
+    <div ref={dropdownRef}
+      className={`rounded-[10px] shadow-xl border flex flex-col animate-scale-in absolute top-1 ${
+        dropdownDir === 'right' ? 'right-0' : 'left-0'
+      }`}
+      style={{
+        width: isLocation ? 280 : 250,
+        maxHeight: isLocation ? 420 : 380,
+        backgroundColor: bg,
+        borderColor: borderClr,
+      }}
+    >
       <div className="overflow-y-auto flex-1 p-3 pb-0">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[14px] font-semibold text-white">{column.label}</span>
+          <span className="text-[14px] font-semibold" style={{ color: textPrimary }}>{column.label}</span>
           <button onClick={clear} className="text-[12px] text-[#007aff]">清除</button>
         </div>
 
         {isLocation ? (
           <>
-            {/* Province section */}
             <div className="mb-3">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[11px] text-[#8e8e93] font-medium">省份</span>
@@ -390,8 +440,9 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
                     className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-all duration-150 ${
                       selectedProvinces.includes(p)
                         ? 'bg-[#007aff] text-white'
-                        : 'bg-[#2c2c2e] text-[#c7c7cc] hover:bg-[#3a3a3c]'
+                        : ''
                     }`}
+                    style={!selectedProvinces.includes(p) ? { backgroundColor: chipBg, color: chipText } : {}}
                   >
                     {p}
                     {selectedProvinces.includes(p) && selectedProvinces.length > 0 &&
@@ -400,8 +451,6 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
                 ))}
               </div>
             </div>
-
-            {/* City section */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[11px] text-[#8e8e93] font-medium">城市</span>
@@ -418,8 +467,9 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
                     className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-all duration-150 ${
                       selectedCities.includes(c)
                         ? 'bg-[#007aff] text-white'
-                        : 'bg-[#2c2c2e] text-[#c7c7cc] hover:bg-[#3a3a3c]'
+                        : ''
                     }`}
+                    style={!selectedCities.includes(c) ? { backgroundColor: chipBg, color: chipText } : {}}
                   >
                     {c}
                   </button>
@@ -434,7 +484,8 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
           <>
             <input type="text" value={textSearch} onChange={e => setTextSearch(e.target.value)}
               placeholder="搜索..." autoFocus
-              className="w-full bg-[#2c2c2e] rounded-[8px] px-3 py-2 text-[13px] text-white outline-none mb-2 placeholder-[#8e8e93]"
+              className="w-full rounded-[8px] px-3 py-2 text-[13px] outline-none mb-2 placeholder-[#8e8e93]"
+              style={{ backgroundColor: chipBg, color: textPrimary }}
             />
             <div className="flex items-center gap-2 mb-2">
               <button onClick={() => setSelectedValues(filteredValues.map(v => v))}
@@ -447,10 +498,12 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
             </div>
             <div className="max-h-[180px] overflow-y-auto space-y-0.5">
               {filteredValues.map(v => (
-                <label key={v} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-[#2c2c2e] cursor-pointer">
+                <label key={v} className="flex items-center gap-2 px-1 py-1 rounded cursor-pointer transition-colors"
+                  style={{ backgroundColor: 'transparent' }}
+                >
                   <input type="checkbox" checked={selectedValues.includes(v)} onChange={() => toggleValue(v)}
                     className="accent-[#007aff]" />
-                  <span className="text-[13px] text-white truncate">{v}</span>
+                  <span className="text-[13px] truncate" style={{ color: textPrimary }}>{v}</span>
                 </label>
               ))}
             </div>
@@ -458,10 +511,12 @@ function ColumnFilterDropdown({ column, meta, currentFilter, onApply }) {
         )}
       </div>
 
-      <div className="shrink-0 p-3 border-t border-white/10 bg-[#1c1c1e] rounded-b-[10px]">
+      <div className="shrink-0 p-3 border-t rounded-b-[10px]"
+        style={{ backgroundColor: bg, borderColor: borderClr }}>
         <div className="flex gap-2">
           <button onClick={() => onApply({})}
-            className="flex-1 py-2.5 rounded-[10px] text-[13px] font-medium bg-[#2c2c2e] text-white active:bg-[#3a3a3c] transition-colors">
+            className="flex-1 py-2.5 rounded-[10px] text-[13px] font-medium transition-colors"
+            style={{ backgroundColor: chipBg, color: textPrimary }}>
             取消
           </button>
           <button onClick={apply}

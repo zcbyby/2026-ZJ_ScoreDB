@@ -1,14 +1,29 @@
 <!doctype html>
-<html lang="zh-CN" class="bg-[#f2f2f7]">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#f2f2f7" />
+    <meta name="description" content="2026-ZJScoreDB 浙江高考录取分数线查询系统（非官方），提供2023–2025年第一段平行投档分数线" />
+    <meta name="keywords" content="浙江高考,录取分数线,平行投档,2025高考,2024高考,2023高考,位次,志愿填报" />
+    <meta property="og:title" content="2026-ZJScoreDB (Unofficial)" />
+    <meta property="og:description" content="浙江省普通高校招生第一段平行投档分数线 · 2023–2025 · 仅供参考" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://github.com/zcbyby/2026-ZJ_ScoreDB" />
     <title>2026-ZJScoreDB (Unofficial)</title>
+    <script>
+      (function() {
+        var t = localStorage.getItem('theme');
+        if (!t) { t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+        document.documentElement.classList.add(t);
+      })();
+    </script>
   </head>
-  <body class="m-0 p-0 font-sans text-[#1c1c1e] antialiased">
+  <body class="m-0 p-0 font-sans antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
