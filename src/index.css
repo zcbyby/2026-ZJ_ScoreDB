@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+:root {
+  --ios-safe-top: env(safe-area-inset-top, 20px);
+  --ios-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #f2f2f7;
+  overflow-x: hidden;
+}
+
+/* iOS-style scrollbar */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Glass effect */
+.ios-glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+.ios-glass-dark {
+  background: rgba(30, 30, 30, 0.8);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Card style */
+.ios-card {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 13px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.dark .ios-card {
+  background: rgba(44, 44, 46, 0.9);
+}
+
+/* Segmented control */
+.ios-segment {
+  background: rgba(118, 118, 128, 0.12);
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.ios-segment button {
+  border-radius: 7px;
+  padding: 4px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #8e8e93;
+  transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.ios-segment button.active {
+  background: #fff;
+  color: #1c1c1e;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Pull to refresh hint */
+.ios-pull-hint {
+  color: #8e8e93;
+  font-size: 13px;
+}
+
+/* List style */
+.ios-list {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ios-list-item {
+  background: rgba(255, 255, 255, 0.9);
+  padding: 12px 16px;
+  border-bottom: 0.5px solid rgba(60, 60, 67, 0.08);
+}
+
+.ios-list-item:last-child {
+  border-bottom: none;
+}
+
+/* Navigation bar title */
+.ios-title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.ios-large-title {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Tooltip */
+.ios-tooltip {
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: white;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+/* Map-specific */
+.map-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Disable all animations and transitions globally */
+*, *::before, *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+.score-legend {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.legend-bar {
+  height: 12px;
+  border-radius: 6px;
+  flex: 1;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Row enter animation for filtered table */
+@keyframes rowEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-row-enter {
+  animation: rowEnter 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Smooth spring for interactive elements */
+.ease-spring {
+  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Dropdown slide */
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
