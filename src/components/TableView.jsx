@@ -317,7 +317,7 @@ export default function TableView({ mergedData }) {
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col relative" ref={bodyRef}>
-        <div ref={scrollRef} className="flex-1 overflow-auto" onScroll={onScroll}>
+        <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden max-w-full" onScroll={onScroll}>
           <div style={{ width: totalWidth, minWidth: '100%' }}>
             {/* Sticky header: scrolls horizontally with content, stays at top vertically */}
             <div className="sticky top-0 z-10 flex bg-[var(--table-header-bg)] border-b border-[var(--border-medium)] transition-colors"
