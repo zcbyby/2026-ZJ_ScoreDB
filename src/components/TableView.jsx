@@ -12,6 +12,7 @@ const COLUMN_DEFS = [
   { key: 'school_code', label: '院校代码', align: 'center', type: 'text', minW: 72, flex: 0.5 },
   { key: 'school_name', label: '院校名称', align: 'left', type: 'text', minW: 100, flex: 2 },
   { key: 'location', label: '所在省市', align: 'left', type: 'location', minW: 90, flex: 1.2 },
+  { key: 'subject_requirement', label: '选科要求', align: 'left', type: 'text', minW: 100, flex: 1.5 },
   { key: 'major_name', label: '专业名称', align: 'left', type: 'text', minW: 120, flex: 3 },
   { key: 'score_2025', label: '25分数', align: 'right', type: 'number', minW: 60, flex: 0.6 },
   { key: 'rank_2025', label: '25位次', align: 'right', type: 'number', minW: 76, flex: 0.8 },
@@ -246,6 +247,7 @@ export default function TableView({ mergedData }) {
                     onClick={() => handleSort(col.key)}
                     className="flex items-center gap-1 w-full h-full pl-2 pr-6 text-[11px] font-semibold transition-colors"
                     style={{ justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start', color: sortKey === col.key ? 'var(--text-primary)' : 'var(--text-tertiary)' }}
+                    title={col.key === 'subject_requirement' ? '2024年数据·现行标准。从2024年高考招生开始适用，如无重大调整变化不再每年组织编报。' : undefined}
                   >
                     <span className="truncate">{col.label}</span>
                     {sortKey === col.key && <ArrowUpDown size={10} className="shrink-0" />}
@@ -313,7 +315,7 @@ export default function TableView({ mergedData }) {
                           onClick={isSchool ? (e) => {
                             const rect = e.currentTarget.getBoundingClientRect()
                             setPopoverAnchor(rect)
-                            setPopoverSchool(val)
+                            setPopoverSchool({ name: val, requirement: r.subject_requirement })
                           } : undefined}
                         >
                           {col.key === 'location' ? val : fmtValue(val, col)}
@@ -331,7 +333,8 @@ export default function TableView({ mergedData }) {
 
         {popoverSchool && popoverAnchor && (
           <SchoolPopover
-            schoolName={popoverSchool}
+            schoolName={popoverSchool.name}
+            subjectRequirement={popoverSchool.requirement}
             anchorRect={popoverAnchor}
             onClose={() => { setPopoverSchool(null); setPopoverAnchor(null) }}
           />
@@ -344,6 +347,7 @@ function getColValue(row, key) {
   if (key === 'school_code') return row.school_code
   if (key === 'school_name') return row.school_name
   if (key === 'major_name') return row.major_name
+  if (key === 'subject_requirement') return row.subject_requirement
   if (key === 'location') return `${row.school_province || ''}${row.school_city ? '/' + row.school_city : ''}`
   const [field, year] = key.split('_')
   const d = row[year]

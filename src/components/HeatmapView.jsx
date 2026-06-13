@@ -9,6 +9,7 @@ const COLUMNS = [
   { key: 'school_code', label: '院校代码', width: 72, align: 'center', type: 'text' },
   { key: 'school_name', label: '院校名称', width: 100, align: 'left', type: 'text' },
   { key: 'location', label: '所在省市', width: 100, align: 'left', type: 'location' },
+  { key: 'subject_requirement', label: '选科要求', width: 100, align: 'left', type: 'text' },
   { key: 'major_name', label: '专业名称', width: 140, align: 'left', type: 'text' },
 ]
 
@@ -74,7 +75,7 @@ export default function HeatmapView({ mergedData }) {
         const d = m[year]
         if (!d || d.score <= 0) continue
         points.push({
-          value: [m.volatility, d.score, m.school_name, d.name, d.rank, d.plan, year, m.school_province, m.school_city],
+          value: [m.volatility, d.score, m.school_name, d.name, m.subject_requirement, d.rank, d.plan, year, m.school_province, m.school_city],
           name: `${m.school_name} · ${d.name} (${year})`,
         })
       }
@@ -97,9 +98,10 @@ export default function HeatmapView({ mergedData }) {
       const d = params.data
       if (d && d.value && d.value[2]) {
         const schoolName = d.value[2]
+        const req = d.value[4]
         const rect = containerRef.current.getBoundingClientRect()
         const chartRect = chart.getDom().getBoundingClientRect()
-        setPopoverSchool(schoolName)
+        setPopoverSchool({ name: schoolName, requirement: req })
         setPopoverAnchor({
           left: params.event && params.event.event ? params.event.event.clientX : chartRect.left + chartRect.width / 2,
           top: params.event && params.event.event ? params.event.event.clientY : chartRect.top + chartRect.height / 2,
@@ -140,11 +142,12 @@ export default function HeatmapView({ mergedData }) {
         formatter: (params) => {
           const d = params.data
           if (!d || !d.value) return ''
-          const [vol, score, school, major, rank, plan, year, prov, city] = d.value
+          const [vol, score, school, major, req, rank, plan, year, prov, city] = d.value
           return `
             <div style="font-weight:600;font-size:14px;margin-bottom:2px">${school}</div>
             <div style="font-size:11px;opacity:.6;margin-bottom:1px">${prov || ''}${city ? '/' + city : ''}</div>
             <div style="font-size:12px;opacity:.7;margin-bottom:4px">${major}</div>
+            ${req && req !== '待确认' ? `<div style="font-size:11px;color:#ff9f0a;margin-bottom:4px">选科：${req}</div>` : ''}
             <div style="display:flex;justify-content:space-between;gap:12px;font-size:12px">
               <span style="color:${getYearColor(year)}">${year}年</span>
               <span style="font-weight:600">${score}分</span>
@@ -239,6 +242,7 @@ export default function HeatmapView({ mergedData }) {
 
   const getRowVal = (row, key) => {
     if (key === 'location') return `${row.school_province || ''}${row.school_city ? '/' + row.school_city : ''}`
+    if (key === 'subject_requirement') return row.subject_requirement
     return row[key]
   }
 
@@ -310,7 +314,8 @@ export default function HeatmapView({ mergedData }) {
 
       {popoverSchool && popoverAnchor && (
         <SchoolPopover
-          schoolName={popoverSchool}
+          schoolName={popoverSchool.name}
+          subjectRequirement={popoverSchool.requirement}
           anchorRect={popoverAnchor}
           onClose={() => { setPopoverSchool(null); setPopoverAnchor(null) }}
         />
