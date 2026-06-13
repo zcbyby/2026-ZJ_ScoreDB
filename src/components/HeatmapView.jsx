@@ -147,7 +147,7 @@ export default function HeatmapView({ mergedData }) {
             <div style="font-weight:600;font-size:14px;margin-bottom:2px">${school}</div>
             <div style="font-size:11px;opacity:.6;margin-bottom:1px">${prov || ''}${city ? '/' + city : ''}</div>
             <div style="font-size:12px;opacity:.7;margin-bottom:4px">${major}</div>
-            ${req && req !== '待确认' ? `<div style="font-size:11px;color:#ff9f0a;margin-bottom:4px">选科：${req}</div>` : ''}
+            ${req ? `<div style="font-size:11px;color:${req === '自行确认' ? '#ff3b30' : '#ff9f0a'};margin-bottom:4px">选科：${req}</div>` : ''}
             <div style="display:flex;justify-content:space-between;gap:12px;font-size:12px">
               <span style="color:${getYearColor(year)}">${year}年</span>
               <span style="font-weight:600">${score}分</span>

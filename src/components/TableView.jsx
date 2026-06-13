@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { getScoreColor, buildLocationMap } from '../utils/data'
 import { ArrowUpDown, ListFilter, Download } from 'lucide-react'
-import * as XLSX from 'xlsx'
 import SchoolPopover from './SchoolPopover'
 
 const ROW_HEIGHT = 40
@@ -41,6 +40,9 @@ export default function TableView({ mergedData }) {
   openFilterRef.current = openFilterCol
   const [popoverSchool, setPopoverSchool] = useState(null)
   const [popoverAnchor, setPopoverAnchor] = useState(null)
+  const [showTip, setShowTip] = useState(false)
+  const [tipPos, setTipPos] = useState({ top: 0, left: 0 })
+  const tipTimer = useRef(null)
 
   const locationMap = useMemo(() => buildLocationMap(mergedData), [mergedData])
 
@@ -184,35 +186,115 @@ export default function TableView({ mergedData }) {
     setFilterGen(g => g + 1)
   }
 
-  const exportXLSX = useCallback(() => {
+  const filterSummary = useMemo(() => {
+    const parts = []
+    for (const [colKey, filter] of Object.entries(columnFilters)) {
+      if (colKey === 'location') {
+        if (filter.provinces?.length) parts.push(`${filter.provinces.join(',')}`)
+        if (filter.cities?.length) parts.push(`${filter.cities.join(',')}`)
+      } else if (filter.selectedValues?.length) {
+        if (filter.selectedValues.length <= 3) parts.push(filter.selectedValues.join(','))
+        else parts.push(`${filter.selectedValues.length}项`)
+      } else if (filter.textSearch) {
+        parts.push(filter.textSearch)
+      } else if (filter.min != null || filter.max != null) {
+        const r = `${filter.min ?? ''}-${filter.max ?? ''}`
+        if (r !== '-') parts.push(r)
+      }
+    }
+    return parts.join('_')
+  }, [columnFilters])
+
+  const rowMatchesFilter = useCallback((row) => {
+    const entries = Object.entries(columnFilters)
+    if (entries.length === 0) return true
+    for (const [colKey, filter] of entries) {
+      if (colKey === 'location') {
+        const p = row.school_province
+        const c = row.school_city
+        if (filter.provinces?.length && (!p || !filter.provinces.includes(p))) return false
+        if (filter.cities?.length && (!c || !filter.cities.includes(c))) return false
+      } else {
+        const val = getColValue(row, colKey)
+        const col = COLUMNS.find(c => c.key === colKey)
+        if (col?.type === 'text') {
+          if (filter.selectedValues?.length && !filter.selectedValues.includes(val)) return false
+          if (filter.textSearch && val && !val.toLowerCase().includes(filter.textSearch.toLowerCase())) return false
+        } else if (filter.min != null || filter.max != null) {
+          if (filter.min != null && (val == null || val < filter.min)) return false
+          if (filter.max != null && (val == null || val > filter.max)) return false
+        }
+      }
+    }
+    return true
+  }, [columnFilters, COLUMNS])
+
+  const exportXLSX = useCallback(async () => {
+    const ExcelJSMod = await import('exceljs')
+    const ExcelJS = ExcelJSMod.default || ExcelJSMod.Workbook
+    const wb = new ExcelJS.Workbook()
+    wb.creator = 'ZJScoreDB'
+    wb.created = new Date()
+    const ws = wb.addWorksheet('录取数据')
+
     const headers = COLUMNS.map(c => c.label)
-    const rows = processed.map(r => COLUMNS.map(c => {
-      if (c.key === 'location') return `${r.school_province || ''}${r.school_city ? '/' + r.school_city : ''}`
-      const v = getColValue(r, c.key)
-      if (v == null || v === '') return ''
-      if (c.type === 'number' && typeof v === 'number') return v
-      return String(v)
-    }))
+    const headerRow = ws.addRow(headers)
+    headerRow.font = { bold: true, size: 11, color: { argb: 'FF8E8E93' } }
+    headerRow.eachCell(cell => { cell.alignment = { vertical: 'middle' } })
 
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
-    ws['!cols'] = COLUMNS.map(c => ({ wch: Math.max(10, Math.round(c.width / 7)) }))
-    const lastCol = XLSX.utils.encode_col(COLUMNS.length - 1)
-    ws['!autofilter'] = { ref: `A1:${lastCol}${rows.length + 1}` }
+    const yearColorMap = { '2023': 'FF007AFF', '2024': 'FF34C759', '2025': 'FFFF3B30' }
 
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, '录取数据')
+    for (const r of mergedData) {
+      const matches = rowMatchesFilter(r)
+      const rowData = COLUMNS.map(c => {
+        if (c.key === 'location') return `${r.school_province || ''}${r.school_city ? '/' + r.school_city : ''}`
+        const v = getColValue(r, c.key)
+        if (v == null || v === '') return ''
+        if (c.type === 'number' && typeof v === 'number') return v
+        return String(v)
+      })
+      const row = ws.addRow(rowData)
+      if (!matches) row.hidden = true
 
-    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-    const blob = new Blob([wbout], { type: 'application/octet-stream' })
+      COLUMNS.forEach((c, i) => {
+        const cell = row.getCell(i + 1)
+        const val = rowData[i]
+
+        if (c.key.startsWith('score_')) {
+          const year = c.key.split('_')[1]
+          cell.font = { color: { argb: yearColorMap[year] || 'FF000000' }, bold: true, size: 11 }
+        } else if (c.key.startsWith('rank_') || c.key.startsWith('plan_')) {
+          cell.font = { color: { argb: 'FF8E8E93' }, size: 11 }
+        } else if (c.key === 'subject_requirement' && val === '自行确认') {
+          cell.font = { color: { argb: 'FFFF3B30' }, size: 11 }
+        } else if (c.key === 'location') {
+          cell.font = { color: { argb: 'FF8E8E93' }, size: 11 }
+        } else {
+          cell.font = { color: { argb: 'FF1C1C1E' }, size: 11 }
+        }
+
+        if (c.align === 'right') cell.alignment = { horizontal: 'right', vertical: 'middle' }
+        else if (c.align === 'center') cell.alignment = { horizontal: 'center', vertical: 'middle' }
+        else cell.alignment = { horizontal: 'left', vertical: 'middle' }
+      })
+    }
+
+    COLUMNS.forEach((c, i) => { ws.getColumn(i + 1).width = Math.max(10, Math.round(c.width / 7)) })
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: ws.rowCount, column: COLUMNS.length } }
+
+    const buf = await wb.xlsx.writeBuffer()
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `浙江高考录取分数线_${new Date().toISOString().slice(0, 10)}.xlsx`
+    const dateStr = new Date().toISOString().slice(0, 10)
+    const filterTag = filterSummary ? `_筛(${filterSummary})` : ''
+    a.download = `浙江高考23-25年录取分数线${filterTag}_${dateStr}.xlsx`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-  }, [processed, COLUMNS])
+  }, [mergedData, COLUMNS, filterSummary, rowMatchesFilter])
 
   const rowKey = useCallback((r, absIndex) => r.school_code + '|' + r.major_name + '|' + absIndex + '|g' + filterGen, [filterGen])
 
@@ -247,7 +329,22 @@ export default function TableView({ mergedData }) {
                     onClick={() => handleSort(col.key)}
                     className="flex items-center gap-1 w-full h-full pl-2 pr-6 text-[11px] font-semibold transition-colors"
                     style={{ justifyContent: col.align === 'right' ? 'flex-end' : col.align === 'center' ? 'center' : 'flex-start', color: sortKey === col.key ? 'var(--text-primary)' : 'var(--text-tertiary)' }}
-                    title={col.key === 'subject_requirement' ? '2024年数据·现行标准。从2024年高考招生开始适用，如无重大调整变化不再每年组织编报。' : undefined}
+                    onMouseEnter={col.key === 'subject_requirement' ? (e) => {
+                      if (tipTimer.current) clearTimeout(tipTimer.current)
+                      const r = e.currentTarget.getBoundingClientRect()
+                      setTipPos({ top: r.top, left: r.right + 8 })
+                      setShowTip(true)
+                    } : undefined}
+                    onMouseLeave={col.key === 'subject_requirement' ? () => {
+                      tipTimer.current = setTimeout(() => setShowTip(false), 1000)
+                    } : undefined}
+                    onClick={col.key === 'subject_requirement' ? (e) => {
+                      handleSort(col.key)
+                      if (tipTimer.current) clearTimeout(tipTimer.current)
+                      const r = e.currentTarget.getBoundingClientRect()
+                      setTipPos({ top: r.top, left: r.right + 8 })
+                      setShowTip(t => !t)
+                    } : (e) => { handleSort(col.key); if (tipTimer.current) clearTimeout(tipTimer.current); setShowTip(false) }}
                   >
                     <span className="truncate">{col.label}</span>
                     {sortKey === col.key && <ArrowUpDown size={10} className="shrink-0" />}
@@ -298,7 +395,8 @@ export default function TableView({ mergedData }) {
                       const isCode = col.key === 'school_code'
 
                       let color = 'var(--text-primary)'
-                      if (isScore && val > 0) color = getScoreColor(val)
+                      if (col.key === 'subject_requirement' && val === '自行确认') color = '#ff3b30'
+                      else if (isScore && val > 0) color = getScoreColor(val)
                       else if (isRank && val > 0) color = 'var(--text-tertiary)'
                       else if (isPlan) color = 'var(--text-secondary)'
 
@@ -338,6 +436,34 @@ export default function TableView({ mergedData }) {
             anchorRect={popoverAnchor}
             onClose={() => { setPopoverSchool(null); setPopoverAnchor(null) }}
           />
+        )}
+
+        {showTip && (
+          <div
+            className="fixed z-50 px-3 py-2.5 rounded-[10px] text-[12px] leading-relaxed shadow-lg"
+            style={{
+              top: tipPos.top,
+              left: tipPos.left,
+              maxWidth: 'min(calc(100vw - 24px), 340px)',
+              backgroundColor: 'var(--tooltip-bg)',
+              color: 'var(--tooltip-text)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+            }}
+            onMouseEnter={() => { if (tipTimer.current) clearTimeout(tipTimer.current) }}
+            onMouseLeave={() => { tipTimer.current = setTimeout(() => setShowTip(false), 1000) }}
+          >
+            <p className="mb-1.5">选科要求："从2024年高考招生开始适用，如无重大调整变化不再每年组织编报"，所以没有单独的2025版，2024数据就是现行标准。</p>
+            <a
+              href="https://www.zjzs.net/col/col173/index.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[#007aff] hover:underline"
+            >
+              查看官方说明
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+            </a>
+          </div>
         )}
     </div>
   )

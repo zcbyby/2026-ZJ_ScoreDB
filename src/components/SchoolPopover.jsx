@@ -67,9 +67,7 @@ export default function SchoolPopover({ schoolName, anchorRect, onClose, subject
       <div className="bg-[var(--dropdown-bg)] rounded-[14px] shadow-xl border border-[var(--border-medium)] overflow-hidden min-w-[220px] max-w-[280px]">
         <div className="px-4 py-3 border-b border-[var(--border-color)]">
           <p className="text-[13px] font-semibold text-[var(--text-primary)] truncate">{schoolName}</p>
-          {subjectRequirement && subjectRequirement !== '待确认' && (
-            <p className="text-[10px] text-[#ff9f0a] mt-0.5 font-medium">选科要求：{subjectRequirement}</p>
-          )}
+
           <p className="text-[10px] text-[var(--text-secondary)] mt-0.5">以下内容来自网络，本项目与其中信息无关</p>
         </div>
         <div className="py-1.5">

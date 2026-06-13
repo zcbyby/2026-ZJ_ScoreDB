@@ -1,18 +1,17 @@
-const CACHE = {};
+function nocache(url) {
+  const sep = url.includes('?') ? '&' : '?'
+  return url + sep + 't=' + Date.now()
+}
 
 export async function loadMerged() {
-  if (CACHE.merged) return CACHE.merged;
-  const res = await fetch('/merged.json');
+  const res = await fetch(nocache('/merged.json'));
   const data = await res.json();
-  CACHE.merged = data;
   return data;
 }
 
 export async function loadHeatmap() {
-  if (CACHE.heatmap) return CACHE.heatmap;
-  const res = await fetch('/heatmap.json');
+  const res = await fetch(nocache('/heatmap.json'));
   const data = await res.json();
-  CACHE.heatmap = data;
   return data;
 }
 

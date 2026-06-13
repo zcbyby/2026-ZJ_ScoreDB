@@ -45,7 +45,7 @@ function AppInner() {
             <h1 className="ios-large-title text-[var(--text-primary)]">2026-ZJScoreDB (Unofficial)</h1>
             <p className="text-[11px] text-[var(--text-secondary)] -mt-0.5 mb-1">
               第一段平行投档分数线 · 2023–2025
-              <span className="ml-1 text-[10px] opacity-60">仅供参考</span>
+              <span className="ml-1 text-[10px] opacity-60">              仅供参考 · 数据最后更新时间：2026-6-13 12:00</span>
             </p>
           </div>
           <div className="flex items-center gap-0.5 mt-1.5">
